@@ -9,11 +9,14 @@ const logsList = document.querySelector("#logs-list");
 const previewButtons = document.querySelectorAll("[data-preview-type]");
 let previewType = "welcome";
 let currentChannels = [];
+let currentGuild = null;
 
 const preview = {
   line: document.querySelector(".embed-line"),
   title: document.querySelector("#preview-title"),
   message: document.querySelector("#preview-message"),
+  mediaWrap: document.querySelector("#media-preview"),
+  media: document.querySelector("#preview-media"),
   footer: document.querySelector("#preview-footer")
 };
 
@@ -43,7 +46,9 @@ function getFormConfig() {
     welcomeMessage: getField("welcomeMessage").value,
     leaveTitle: getField("leaveTitle").value,
     leaveMessage: getField("leaveMessage").value,
-    embedColor: getField("embedColor").value
+    embedColor: getField("embedColor").value,
+    welcomeImageUrl: getField("welcomeImageUrl").value,
+    leaveImageUrl: getField("leaveImageUrl").value
   };
 }
 
@@ -60,11 +65,22 @@ function setFormConfig(config) {
     "welcomeMessage",
     "leaveTitle",
     "leaveMessage",
-    "embedColor"
+    "embedColor",
+    "welcomeImageUrl",
+    "leaveImageUrl"
   ]) {
     if (getField(key)) {
       getField(key).value = config[key] || "";
     }
+  }
+}
+
+function isValidMediaUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
   }
 }
 
@@ -91,7 +107,21 @@ function updatePreview() {
   preview.title.textContent = fakeTags(isWelcome ? config.welcomeTitle : config.leaveTitle);
   preview.message.textContent = fakeTags(isWelcome ? config.welcomeMessage : config.leaveMessage);
   preview.footer.textContent = "42 membres";
+
+  const imageUrl = isWelcome ? config.welcomeImageUrl : config.leaveImageUrl;
+  if (isValidMediaUrl(imageUrl)) {
+    preview.media.src = imageUrl;
+    preview.mediaWrap.hidden = false;
+  } else {
+    preview.media.removeAttribute("src");
+    preview.mediaWrap.hidden = true;
+  }
 }
+
+preview.media.addEventListener("error", () => {
+  preview.media.removeAttribute("src");
+  preview.mediaWrap.hidden = true;
+});
 
 function showNotice(message, isError = false) {
   notice.textContent = message;
@@ -114,29 +144,39 @@ async function loadConfig() {
 }
 
 async function loadChannels() {
-  const response = await fetch("/api/channels");
-  currentChannels = await response.json();
-  fillChannelSelects();
-}
-
-async function loadGuild() {
-  const response = await fetch("/api/guild");
+  const response = await fetch("/api/guilds");
   const data = await response.json();
-  const guild = data.guild;
+  currentGuild = data.guilds[0] || null;
+  currentChannels = currentGuild?.channels || [];
 
-  botNameEl.textContent = data.botName;
-  statusEl.textContent = guild.ready ? "Connecte" : "Hors ligne";
-  serverNameEl.textContent = guild.name;
-  serverMetaEl.textContent = `${guild.memberCount || 0} membres`;
+  botNameEl.textContent = data.botTag || "Bot hors ligne";
+  const isConnecting = data.loginStarted && !data.ready && !data.loginError;
+  statusEl.textContent = data.ready ? "Connecte" : isConnecting ? "Connexion..." : "Hors ligne";
+  statusEl.classList.toggle("offline", !data.ready && !isConnecting);
 
-  if (guild.iconUrl) {
-    serverAvatarEl.src = guild.iconUrl;
-    serverAvatarEl.hidden = false;
+  if (currentGuild) {
+    serverNameEl.textContent = currentGuild.name;
+    serverMetaEl.textContent = `${currentGuild.memberCount || 0} membres`;
+    if (currentGuild.iconUrl) {
+      serverAvatarEl.src = currentGuild.iconUrl;
+      serverAvatarEl.hidden = false;
+    } else {
+      serverAvatarEl.hidden = true;
+    }
   } else {
+    serverNameEl.textContent = "Aucun serveur";
+    serverMetaEl.textContent = data.loginError
+      ? `Erreur Discord : ${data.loginError}`
+      : "Aucun serveur connecte";
     serverAvatarEl.hidden = true;
   }
 
+  fillChannelSelects();
   updatePreview();
+}
+
+async function loadGuild() {
+  await loadChannels();
 }
 
 async function loadLogs() {
@@ -256,7 +296,7 @@ document.querySelectorAll(".nav-link").forEach((link) => {
   });
 });
 
-Promise.all([loadGuild(), loadChannels(), loadConfig(), loadLogs()]).catch(() => {
+Promise.all([loadChannels(), loadConfig(), loadLogs()]).catch(() => {
   showNotice("Impossible de charger le dashboard.", true);
 });
 

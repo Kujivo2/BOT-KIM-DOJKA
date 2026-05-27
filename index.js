@@ -13,9 +13,29 @@ const {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || "0.0.0.0";
 const CONFIG_PATH = path.join(__dirname, "config.json");
 const MAX_LOGS = 50;
+const EVENT_DEDUPE_MS = 15000;
 const eventLogs = [];
+const recentEvents = new Map();
+let loginError = "";
+let loginStarted = false;
+
+function waitForClientReady(timeoutMs = 4000) {
+  if (client.isReady() || loginError || !loginStarted) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const timeout = setTimeout(resolve, timeoutMs);
+
+    client.once(Events.ClientReady, () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+}
 
 const defaultConfig = {
   modules: {
@@ -30,11 +50,55 @@ const defaultConfig = {
   welcomeMessage: "Bienvenue {user} sur {server} !",
   leaveTitle: "Au revoir !",
   leaveMessage: "{user} a quitte le serveur.",
-  embedColor: "#8b5cf6"
+  embedColor: "#8b5cf6",
+  welcomeImageUrl: "",
+  leaveImageUrl: ""
 };
 
-function getPrimaryGuild() {
-  return client.guilds.cache.first() || null;
+async function getPrimaryGuild() {
+  await waitForClientReady();
+  if (!client.isReady()) return null;
+
+  const cachedGuild = client.guilds.cache.first();
+  if (cachedGuild) return cachedGuild;
+
+  const guilds = await client.guilds.fetch().catch(() => null);
+  const firstGuild = guilds?.first();
+  return firstGuild ? client.guilds.fetch(firstGuild.id).catch(() => null) : null;
+}
+
+async function getTextChannels(guild) {
+  if (!guild) return [];
+
+  const channelCache = await guild.channels.fetch().catch(() => guild.channels.cache);
+
+  return channelCache
+    .filter((channel) => channel && (
+      channel.type === ChannelType.GuildText ||
+      channel.type === ChannelType.GuildAnnouncement
+    ))
+    .sort((first, second) => first.rawPosition - second.rawPosition)
+    .map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+      type: channel.type
+    }));
+}
+
+async function getConnectedGuilds() {
+  await waitForClientReady();
+  if (!client.isReady()) return [];
+
+  const guilds = [];
+
+  for (const guild of client.guilds.cache.values()) {
+    guilds.push({
+      ...serializeGuild(guild),
+      channels: await getTextChannels(guild)
+    });
+  }
+
+  return guilds;
 }
 
 function sanitizeConfig(input = {}) {
@@ -58,7 +122,9 @@ function sanitizeConfig(input = {}) {
     welcomeMessage: String(input.welcomeMessage || defaultConfig.welcomeMessage).trim(),
     leaveTitle: String(input.leaveTitle || defaultConfig.leaveTitle).trim(),
     leaveMessage: String(input.leaveMessage || defaultConfig.leaveMessage).trim(),
-    embedColor: String(input.embedColor || defaultConfig.embedColor).trim()
+    embedColor: String(input.embedColor || defaultConfig.embedColor).trim(),
+    welcomeImageUrl: String(input.welcomeImageUrl || "").trim(),
+    leaveImageUrl: String(input.leaveImageUrl || "").trim()
   };
 
   if (!/^#[0-9a-f]{6}$/i.test(config.embedColor)) {
@@ -66,6 +132,20 @@ function sanitizeConfig(input = {}) {
   }
 
   return config;
+}
+
+function isValidMediaUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function getEmbedImageUrl(config, type) {
+  const url = type === "welcome" ? config.welcomeImageUrl : config.leaveImageUrl;
+  return isValidMediaUrl(url) ? url : "";
 }
 
 function replaceTags(text, memberOrGuild) {
@@ -82,13 +162,20 @@ function replaceTags(text, memberOrGuild) {
 
 function buildMemberEmbed(config, memberOrGuild, type) {
   const isWelcome = type === "welcome";
+  const imageUrl = getEmbedImageUrl(config, type);
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(config.embedColor)
     .setTitle(replaceTags(isWelcome ? config.welcomeTitle : config.leaveTitle, memberOrGuild))
     .setDescription(replaceTags(isWelcome ? config.welcomeMessage : config.leaveMessage, memberOrGuild))
     .setFooter({ text: `${memberOrGuild.guild?.memberCount || memberOrGuild.memberCount || 0} membres` })
     .setTimestamp();
+
+  if (imageUrl) {
+    embed.setImage(imageUrl);
+  }
+
+  return embed;
 }
 
 function pushLog(type, member) {
@@ -103,6 +190,26 @@ function pushLog(type, member) {
 
   eventLogs.unshift(entry);
   eventLogs.splice(MAX_LOGS);
+}
+
+function shouldHandleMemberEvent(type, member) {
+  const key = `${type}:${member.guild.id}:${member.id}`;
+  const now = Date.now();
+  const lastSeen = recentEvents.get(key);
+
+  if (lastSeen && now - lastSeen < EVENT_DEDUPE_MS) {
+    return false;
+  }
+
+  recentEvents.set(key, now);
+
+  for (const [eventKey, timestamp] of recentEvents.entries()) {
+    if (now - timestamp > EVENT_DEDUPE_MS) {
+      recentEvents.delete(eventKey);
+    }
+  }
+
+  return true;
 }
 
 async function readConfig() {
@@ -165,7 +272,9 @@ function serializeGuild(guild) {
       id: "",
       name: "Aucun serveur",
       iconUrl: "",
-      memberCount: 0
+      memberCount: 0,
+      loginError,
+      loginStarted
     };
   }
 
@@ -174,7 +283,9 @@ function serializeGuild(guild) {
     id: guild.id,
     name: guild.name,
     iconUrl: guild.iconURL({ size: 128 }) || "",
-    memberCount: guild.memberCount
+    memberCount: guild.memberCount,
+    loginError,
+    loginStarted
   };
 }
 
@@ -190,6 +301,8 @@ client.once(Events.ClientReady, () => {
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
+  if (!shouldHandleMemberEvent("join", member)) return;
+
   pushLog("join", member);
 
   try {
@@ -204,6 +317,8 @@ client.on(Events.GuildMemberAdd, async (member) => {
 });
 
 client.on(Events.GuildMemberRemove, async (member) => {
+  if (!shouldHandleMemberEvent("leave", member)) return;
+
   pushLog("leave", member);
 
   try {
@@ -234,34 +349,34 @@ app.put("/api/config", async (req, res) => {
   }
 });
 
-app.get("/api/guild", (req, res) => {
+app.get("/api/guild", async (req, res) => {
+  const guild = await getPrimaryGuild();
+
   res.json({
     botName: client.user?.tag || "Bot hors ligne",
-    guild: serializeGuild(getPrimaryGuild())
+    guild: serializeGuild(guild)
+  });
+});
+
+app.get("/api/guilds", async (req, res) => {
+  res.json({
+    ready: client.isReady(),
+    botTag: client.user?.tag || null,
+    guilds: await getConnectedGuilds(),
+    loginError,
+    loginStarted
   });
 });
 
 app.get("/api/channels", async (req, res) => {
-  const guild = getPrimaryGuild();
+  const guild = await getPrimaryGuild();
 
   if (!guild) {
     res.json([]);
     return;
   }
 
-  const channels = guild.channels.cache
-    .filter((channel) => (
-      channel.type === ChannelType.GuildText ||
-      channel.type === ChannelType.GuildAnnouncement
-    ))
-    .sort((first, second) => first.rawPosition - second.rawPosition)
-    .map((channel) => ({
-      id: channel.id,
-      name: channel.name,
-      type: channel.type
-    }));
-
-  res.json(channels);
+  res.json(await getTextChannels(guild));
 });
 
 app.get("/api/logs", (req, res) => {
@@ -272,7 +387,7 @@ app.post("/api/test-embed", async (req, res) => {
   try {
     const config = sanitizeConfig(req.body.config || await readConfig());
     const type = req.body.type === "leave" ? "leave" : "welcome";
-    const guild = getPrimaryGuild();
+    const guild = await getPrimaryGuild();
     const channelId = req.body.channelId || (type === "welcome" ? config.welcomeChannelId : config.leaveChannelId);
     const channel = await fetchTextChannel(guild, channelId);
 
@@ -296,16 +411,53 @@ app.post("/api/test-embed", async (req, res) => {
   }
 });
 
-app.get("/api/status", (req, res) => {
+app.get("/api/status", async (req, res) => {
+  await waitForClientReady(1500);
+
   res.json({
     ready: client.isReady(),
+    userTag: client.user?.tag || null,
+    botTag: client.user?.tag || null,
     botName: client.user?.tag || "Bot hors ligne",
-    guilds: client.guilds.cache.size
+    guilds: client.guilds.cache.size,
+    loginError,
+    loginStarted
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Dashboard disponible sur http://localhost:${PORT}`);
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true,
+    ready: client.isReady(),
+    uptime: process.uptime()
+  });
 });
 
-client.login(process.env.TOKEN);
+function loginDiscord() {
+  if (!process.env.TOKEN) {
+    loginError = "TOKEN manquant dans .env.";
+    console.error("TOKEN manquant dans .env, dashboard lance sans connexion Discord.");
+    return;
+  }
+
+  loginStarted = true;
+  client.login(process.env.TOKEN).catch((error) => {
+    loginError = error.message;
+    console.error("Connexion Discord impossible, dashboard lance en mode hors ligne.", error.message);
+  });
+}
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`Dashboard disponible sur http://localhost:${PORT}`);
+  loginDiscord();
+});
+
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(`Port ${PORT} deja utilise. Deuxieme instance arretee pour eviter les messages en double.`);
+    process.exit(1);
+  }
+
+  console.error(error);
+  process.exit(1);
+});

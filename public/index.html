@@ -21,6 +21,7 @@
           <a href="#overview" class="nav-link active">Vue globale</a>
           <a href="#modules" class="nav-link">Modules</a>
           <a href="#embeds" class="nav-link">Embeds</a>
+          <a href="#media" class="nav-link">GIFs</a>
           <a href="#logs" class="nav-link">Logs</a>
         </nav>
       </aside>
@@ -129,6 +130,28 @@
             <p class="hint">Variables : {user}, {username}, {server}, {memberCount}</p>
           </section>
 
+          <section class="panel" id="media">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">GIFs</p>
+                <h2>Images embeds</h2>
+              </div>
+            </div>
+
+            <div class="grid">
+              <label>
+                GIF Bienvenue
+                <input name="welcomeImageUrl" placeholder="https://..." />
+              </label>
+              <label>
+                GIF Aurevoir
+                <input name="leaveImageUrl" placeholder="https://..." />
+              </label>
+            </div>
+
+            <p class="hint">Utilise une URL directe vers une image ou un GIF : .gif, .png, .jpg ou .webp.</p>
+          </section>
+
           <section class="panel preview-panel">
             <div class="section-head">
               <div>
@@ -145,6 +168,9 @@
               <div class="embed-line"></div>
               <h3 id="preview-title"></h3>
               <p id="preview-message"></p>
+              <div class="media-preview" id="media-preview">
+                <img id="preview-media" alt="" />
+              </div>
               <span id="preview-footer"></span>
             </div>
             <p class="notice" id="notice"></p>

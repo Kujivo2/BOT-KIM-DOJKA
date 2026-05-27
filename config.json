@@ -11,5 +11,7 @@
   "welcomeMessage": "Bienvenue {user} sur {server} !",
   "leaveTitle": "Au revoir !",
   "leaveMessage": "{user} a quitte le serveur.",
-  "embedColor": "#8b5cf6"
+  "embedColor": "#8b5cf6",
+  "welcomeImageUrl": "",
+  "leaveImageUrl": ""
 }

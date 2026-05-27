@@ -164,6 +164,12 @@ h2 {
   font-weight: 800;
 }
 
+.status.offline {
+  border-color: rgba(251, 113, 133, 0.38);
+  background: rgba(251, 113, 133, 0.1);
+  color: var(--red);
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -323,7 +329,7 @@ button.secondary {
 
 .preview-panel {
   grid-column: 2;
-  grid-row: 1 / span 3;
+  grid-row: 1 / span 4;
   position: sticky;
   top: 28px;
   align-self: start;
@@ -331,7 +337,7 @@ button.secondary {
 
 .discord-embed {
   position: relative;
-  min-height: 210px;
+  min-height: 250px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -354,6 +360,25 @@ button.secondary {
 .discord-embed p {
   color: #e1ddff;
   line-height: 1.5;
+}
+
+.media-preview {
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.media-preview[hidden] {
+  display: none;
+}
+
+.media-preview img {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
 }
 
 .discord-embed span {
@@ -422,7 +447,7 @@ button.secondary {
   }
 
   .nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   }
 
   .layout {
