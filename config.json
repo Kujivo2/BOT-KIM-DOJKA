@@ -1,0 +1,15 @@
+{
+  "modules": {
+    "welcome": true,
+    "leave": true,
+    "logs": true
+  },
+  "welcomeChannelId": "1508640599396323370",
+  "leaveChannelId": "",
+  "logsChannelId": "",
+  "welcomeTitle": "Bienvenue !",
+  "welcomeMessage": "Bienvenue {user} sur {server} !",
+  "leaveTitle": "Au revoir !",
+  "leaveMessage": "{user} a quitte le serveur.",
+  "embedColor": "#8b5cf6"
+}

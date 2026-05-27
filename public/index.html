@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard Discord Bot</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">D</div>
+          <div>
+            <strong>Dashboard</strong>
+            <span id="bot-name">Bot hors ligne</span>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <a href="#overview" class="nav-link active">Vue globale</a>
+          <a href="#modules" class="nav-link">Modules</a>
+          <a href="#embeds" class="nav-link">Embeds</a>
+          <a href="#logs" class="nav-link">Logs</a>
+        </nav>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar" id="overview">
+          <div class="server-card">
+            <img id="server-avatar" class="server-avatar" alt="" />
+            <div>
+              <p class="eyebrow">Serveur Discord</p>
+              <h1 id="server-name">Chargement...</h1>
+              <p id="server-meta" class="muted">Connexion au bot...</p>
+            </div>
+          </div>
+          <div class="status" id="status">Connexion...</div>
+        </header>
+
+        <form id="config-form" class="layout">
+          <section class="panel" id="modules">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Modules</p>
+                <h2>Activation</h2>
+              </div>
+              <button type="submit">Sauvegarder</button>
+            </div>
+
+            <div class="module-grid">
+              <label class="switch-row">
+                <input name="modules.welcome" type="checkbox" />
+                <span>Welcome</span>
+              </label>
+              <label class="switch-row">
+                <input name="modules.leave" type="checkbox" />
+                <span>Leave</span>
+              </label>
+              <label class="switch-row">
+                <input name="modules.logs" type="checkbox" />
+                <span>Logs joins/leaves</span>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Salons</p>
+                <h2>Destination Discord</h2>
+              </div>
+              <button type="button" class="secondary" id="refresh-channels">Rafraichir</button>
+            </div>
+
+            <div class="grid">
+              <label>
+                Salon bienvenue
+                <select name="welcomeChannelId"></select>
+              </label>
+              <label>
+                Salon depart
+                <select name="leaveChannelId"></select>
+              </label>
+              <label>
+                Salon logs
+                <select name="logsChannelId"></select>
+              </label>
+              <label>
+                Couleur embed
+                <input name="embedColor" type="color" />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel" id="embeds">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Embeds</p>
+                <h2>Messages</h2>
+              </div>
+              <div class="button-group">
+                <button type="button" class="secondary" id="test-welcome">Test bienvenue</button>
+                <button type="button" class="secondary" id="test-leave">Test depart</button>
+              </div>
+            </div>
+
+            <div class="grid">
+              <label>
+                Titre bienvenue
+                <input name="welcomeTitle" />
+              </label>
+              <label>
+                Titre depart
+                <input name="leaveTitle" />
+              </label>
+            </div>
+
+            <label>
+              Message bienvenue
+              <textarea name="welcomeMessage" rows="3"></textarea>
+            </label>
+
+            <label>
+              Message depart
+              <textarea name="leaveMessage" rows="3"></textarea>
+            </label>
+
+            <p class="hint">Variables : {user}, {username}, {server}, {memberCount}</p>
+          </section>
+
+          <section class="panel preview-panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Apercu</p>
+                <h2>Embed live</h2>
+              </div>
+              <div class="segmented" aria-label="Type apercu">
+                <button type="button" class="active" data-preview-type="welcome">Welcome</button>
+                <button type="button" data-preview-type="leave">Leave</button>
+              </div>
+            </div>
+
+            <div class="discord-embed">
+              <div class="embed-line"></div>
+              <h3 id="preview-title"></h3>
+              <p id="preview-message"></p>
+              <span id="preview-footer"></span>
+            </div>
+            <p class="notice" id="notice"></p>
+          </section>
+        </form>
+
+        <section class="panel logs-panel" id="logs">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Activite</p>
+              <h2>Logs joins/leaves</h2>
+            </div>
+            <button type="button" class="secondary" id="refresh-logs">Rafraichir</button>
+          </div>
+          <div class="logs-list" id="logs-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/script.js"></script>
+  </body>
+</html>
